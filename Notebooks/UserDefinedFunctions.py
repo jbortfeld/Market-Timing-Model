@@ -58,3 +58,53 @@ def get_stock_data(tickers=['SPY'],
     df['return'] = df.groupby(by='ticker')['price'].apply(lambda x: x / x.shift(1) - 1.0)
 
     return df[['ticker', 'date', 'price', 'return']]
+
+def WLS_regression(data, rho = 0.99):
+    
+    df = data.copy()
+    df.dropna(axis = 0, inplace = True)
+    
+    # make sure the data is sorted chronologically
+    df.sort_values(by = 'portfolio_date', inplace = True)
+    
+    # get the number of observations in the dataset
+    big_t = df.shape[0] + 1
+    
+    # construct the weights to use for each observation
+    # the most distant observation will have a small weight
+    # and the most recent observation will have a big weight
+    weights = []
+    for small_t in range(1, big_t):
+        weights.append(rho**(big_t - small_t))
+    weights = np.array(weights)
+    
+    # create the explanatory variables
+    X = df[['industrial_production', 'change_inflation', 'credit_risk_premium',
+           'slope_interest_rate', 'housing_starts', 'delinquencies', 'change_unemployment']]
+    
+    # now fit a model using the statsmodel WLS function
+    #sm.WLS(y_data, x_data, weights)
+    model_wls = sm.WLS(df['forward_spy_return'], statsmodels.tools.tools.add_constant(X), weights = weights)
+    fit_wls = model_wls.fit()
+    
+    # save the coefficients into a dictionary
+    results = fit_wls.params.to_dict()
+    
+    # add the r-squared, number of observations, etc
+    results['r_squared'] = fit_wls.rsquared
+    results['r_squared_adjusted'] = fit_wls.rsquared_adj
+
+    results['n_obs'] = fit_wls.nobs
+    results['mse'] = fit_wls.mse_total
+    results['aic'] = fit_wls.aic
+    results['model_vars'] = list(fit_wls.params.to_dict().keys())
+    
+    # add the pvalues (statistical significance of each coefficient)
+    pvalues_dict = fit_wls.pvalues.to_dict() 
+    for p in pvalues_dict.keys():
+        results['{}_pval'.format(p)] = pvalues_dict[p]
+        
+    # add the date of the estimation
+    results['portfolio_date'] = df['portfolio_date'].max()
+    
+    return results
