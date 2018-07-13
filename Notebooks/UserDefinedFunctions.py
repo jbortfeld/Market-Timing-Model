@@ -2,6 +2,9 @@ import pandas as pd
 import numpy as np
 from pandas_datareader import data
 import fix_yahoo_finance as yf
+import statsmodels.api as sm
+import statsmodels
+
 
 yf.pdr_override()
 
@@ -59,7 +62,10 @@ def get_stock_data(tickers=['SPY'],
 
     return df[['ticker', 'date', 'price', 'return']]
 
-def WLS_regression(data, rho = 0.99):
+def WLS_regression(data, 
+                   x_vars = ['industrial_production', 'change_inflation', 'credit_risk_premium',
+           'slope_interest_rate', 'housing_starts', 'delinquencies', 'change_unemployment'],
+                   rho = 0.99):
     
     df = data.copy()
     df.dropna(axis = 0, inplace = True)
@@ -79,8 +85,7 @@ def WLS_regression(data, rho = 0.99):
     weights = np.array(weights)
     
     # create the explanatory variables
-    X = df[['industrial_production', 'change_inflation', 'credit_risk_premium',
-           'slope_interest_rate', 'housing_starts', 'delinquencies', 'change_unemployment']]
+    X = df[x_vars]
     
     # now fit a model using the statsmodel WLS function
     #sm.WLS(y_data, x_data, weights)
