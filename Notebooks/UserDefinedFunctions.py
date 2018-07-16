@@ -102,6 +102,7 @@ def WLS_regression(data,
     results['n_obs'] = fit_wls.nobs
     results['mse'] = fit_wls.mse_total
     results['aic'] = fit_wls.aic
+    results['llf'] = fit_wls.llf
     results['model_vars'] = list(fit_wls.params.to_dict().keys())
     
     # add the pvalues (statistical significance of each coefficient)
@@ -112,4 +113,161 @@ def WLS_regression(data,
     # add the date of the estimation
     results['portfolio_date'] = df['portfolio_date'].max()
     
+    return results
+
+def WLS_regression_with_var_selection_r2(data,
+                                         all_possible_vars,
+                                         rho,
+                                         verbose = False):
+
+    # recall that high R^2 is good in contrast to low AIC being good
+    # so set the initial R^2 performance really low
+    current_performance = -999
+
+    # get some training data
+    temp = data.copy()
+
+    # define the variables we want to use
+    # initialize as empty list
+    # (start with no variables since this is using forward variable selection)
+    vars_to_use = []
+
+    search = True
+
+    iterations = 0
+    while search:
+
+        if verbose:
+            print('iteration number: ', iterations)
+        iterations += 1
+
+        best_candidate_performance = -999.
+
+        # iterate through variables
+        for var in all_possible_vars:
+
+            # if variable is not already in the list of variables we are using, then test adding it
+            if not var in vars_to_use:
+
+                vars_to_try = vars_to_use.copy()
+
+                # add the candidate variable to the list of variables already in use
+                vars_to_try.append(var)
+
+                # estimate model
+                results = WLS_regression(temp,
+                                         x_vars = vars_to_try,
+                                         rho = rho)
+
+                # get the performance of this model
+                # save as a tuple (performance, list of vars)
+                performance = results['r_squared_adjusted']
+                if verbose:
+                    print('--adding {} results in {}'.format(var, performance))
+
+                # if adding this variable improves the r^2, then consider adding it
+                if performance > current_performance:
+
+                    if performance > best_candidate_performance:
+                        candidate_variable = var
+                        best_candidate_performance = performance
+
+        # if adding any variable doesn't increase model performance, then stop
+        if best_candidate_performance < current_performance:
+            search = False
+            if verbose:
+                print('break out: {}'.format(best_candidate_performance))
+
+        # if adding a variable increases model performance, then do it
+        else:
+            vars_to_use.append(candidate_variable)
+            current_performance = best_candidate_performance
+        if verbose:
+            print('done with iteration. Add {} and new best adjusted R^2 is {}'.format(candidate_variable, current_aic))
+            print()
+
+    if verbose:
+        print('final variables to use:', vars_to_use)
+
+    # now run the final model
+    results = WLS_regression(temp,
+                             x_vars = vars_to_use,
+                             rho = rho)
+    return results
+
+def WLS_regression_with_var_selection_aic(data,
+                                         all_possible_vars,
+                                         rho,
+                                         verbose = False):
+
+    temp = data.copy()
+
+    # get the performance (AIC) with all variables included in the model
+    results = WLS_regression(temp, x_vars = all_possible_vars, rho=0.99)
+    current_aic = results['aic']
+    if verbose:
+        print('starting AIC with all vars: ', current_aic)
+        print()
+
+    # define the variables we want to use
+    # (again, starting with all variables)
+    vars_to_use = all_possible_vars.copy()
+
+    search = True
+
+    iterations = 0
+    while search:
+
+        if verbose:
+            print('iteration number: ', iterations)
+        iterations += 1
+
+        best_candidate_aic = 999999999.
+
+        # iterate through variables
+        for var in all_possible_vars:
+
+            # if variable is in the list of variables we are using, then test removing it
+            if var in vars_to_use:
+
+                vars_to_try = vars_to_use.copy()
+
+                # remove the candidate variable
+                vars_to_try.remove(var)
+
+                # estimate model
+                results = WLS_regression(temp, x_vars=vars_to_try, rho=0.99)
+                # get the performance of this model
+                performance = results['aic']
+                if verbose:
+                    print('--removing {} results in {}'.format(var, performance))
+
+                # if removing this variable improves the aic, then consider adding it
+                if performance < current_aic:
+
+                    if performance < best_candidate_aic:
+                        candidate_variable = var
+                        best_candidate_aic = performance
+
+        # if removing a variable doesn't improve performance, then strop
+        if best_candidate_aic > current_aic:
+            search = False
+            if verbose:
+                print('break out: {}'.format(best_candidate_aic))
+
+        # if removing a variable improves performance, then remove it and keep testing
+        else:
+            vars_to_use.remove(candidate_variable)
+            current_aic = best_candidate_aic
+        if verbose:
+            print('done with iteration. Remove {} and new best aic is {}'.format(candidate_variable, current_aic))
+            print()
+
+    if verbose:
+        print('final variables to use:', vars_to_use)
+
+    # now run the final model
+    results = WLS_regression(temp,
+                             x_vars=vars_to_use,
+                             rho=rho)
     return results
