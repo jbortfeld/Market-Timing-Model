@@ -183,7 +183,7 @@ def WLS_regression_with_var_selection_r2(data,
             vars_to_use.append(candidate_variable)
             current_performance = best_candidate_performance
         if verbose:
-            print('done with iteration. Add {} and new best adjusted R^2 is {}'.format(candidate_variable, current_aic))
+            print('done with iteration. Add {} and new best adjusted R^2 is {}'.format(candidate_variable, best_candidate_performance))
             print()
 
     if verbose:
